@@ -76,6 +76,96 @@ One or more request fields failed validation. The response contains the validati
 
 An unexpected server-side error occurred, such as a database or registration-processing error.
 
+## Log in a user
+
+Authenticates an existing user with an email address and password and returns an authentication token.
+
+### Endpoint
+
+```http
+POST /users/login
+Content-Type: application/json
+```
+
+The `/users` prefix is mounted in `app.js`, and the `/login` path is defined in `routes/user.routes.js`.
+
+### Request body
+
+| Field | Required | Requirements |
+| --- | --- | --- |
+| `email` | Yes | Must be a valid email address |
+| `password` | Yes | At least 6 characters |
+
+Example:
+
+```json
+{
+  "email": "alex@example.com",
+  "password": "secret123"
+}
+```
+
+Example request with `curl`:
+
+```sh
+curl -X POST http://localhost:3000/users/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"alex@example.com","password":"secret123"}'
+```
+
+### Responses
+
+#### `200 OK`
+
+The credentials were accepted. The token is a JWT configured to expire after 24 hours.
+
+```json
+{
+  "token": "<jwt-token>",
+  "user": {
+    "_id": "<user-id>",
+    "firstname": "Alex",
+    "lastname": "Morgan",
+    "email": "alex@example.com"
+  }
+}
+```
+
+The password is not part of the intended response. The current controller explicitly selects the stored password hash to compare credentials, so it should remove that field before returning the user.
+
+#### `400 Bad Request`
+
+The request fields failed validation. The response contains the validation errors:
+
+```json
+{
+  "errors": [
+    {
+      "msg": "Invalid Email",
+      "path": "email"
+    }
+  ]
+}
+```
+
+#### `401 Unauthorized`
+
+The email address was not found or the password did not match. Both cases return the same response to avoid revealing which credential was incorrect:
+
+```json
+{
+  "message": "Invalid email or password"
+}
+```
+
+#### `500 Internal Server Error`
+
+An unexpected server-side error occurred, such as a database or authentication-processing error.
+
+### Implementation note
+
+This describes the intended endpoint contract. The current route has a typo in the email validator (`isEmaail`), and initializes the router with `express.router()` instead of `express.Router()`. These prevent the route module from loading/registering correctly. Fix those issues before relying on the endpoint. Also, the controller selects `+password` for comparison and currently returns that selected user object; exclude the password field from the response before exposing the endpoint.
+
 ### Implementation note
 
 The intended request shape and response are documented above, but the current route/controller/service contain mismatched field and method names. In particular, the controller refers to `fullname` inconsistently and calls `hashedPassword`, while the model defines `hashPassword`; the service also passes a nested `fullname` object although the model stores `firstname` and `lastname` as top-level fields. As a result, a valid request may currently fail before registration completes.
