@@ -169,3 +169,95 @@ This describes the intended endpoint contract. The current route has a typo in t
 ### Implementation note
 
 The intended request shape and response are documented above, but the current route/controller/service contain mismatched field and method names. In particular, the controller refers to `fullname` inconsistently and calls `hashedPassword`, while the model defines `hashPassword`; the service also passes a nested `fullname` object although the model stores `firstname` and `lastname` as top-level fields. As a result, a valid request may currently fail before registration completes.
+
+## Get the current user's profile
+
+Returns the authenticated user's profile. The endpoint requires a valid JWT either in the `token` cookie or as a Bearer token in the `Authorization` header.
+
+### Endpoint
+
+```http
+GET /users/profile
+```
+
+Bearer token example:
+
+```http
+Authorization: Bearer <jwt-token>
+```
+
+Example request with `curl`:
+
+```sh
+curl http://localhost:3000/users/profile \
+  -H "Authorization: Bearer <jwt-token>"
+```
+
+### Responses
+
+#### `200 OK`
+
+The authenticated user's document is returned. The password is excluded by default by the user model.
+
+```json
+{
+  "_id": "<user-id>",
+  "firstname": "Alex",
+  "lastname": "Morgan",
+  "email": "alex@example.com"
+}
+```
+
+#### `401 Unauthorized`
+
+The token is missing, invalid, expired, or has been blacklisted:
+
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+## Log out a user
+
+Invalidates the current JWT by adding it to the token blacklist and clears the `token` cookie. A blacklisted token is retained until its 24-hour TTL expires.
+
+### Endpoint
+
+```http
+GET /users/logout
+```
+
+Send the token using the `token` cookie or as a Bearer token in the `Authorization` header.
+
+Example request with `curl`:
+
+```sh
+curl -X GET http://localhost:3000/users/logout \
+  -H "Authorization: Bearer <jwt-token>" \
+  --cookie "token=<jwt-token>"
+```
+
+### Responses
+
+#### `200 OK`
+
+```json
+{
+  "message": "Logged out"
+}
+```
+
+#### `401 Unauthorized`
+
+The token is missing, invalid, expired, or already blacklisted:
+
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+### Implementation note
+
+These describe the intended endpoint behavior. The current route module and authentication middleware contain errors that prevent these endpoints from working as documented: the router uses `express.router()` instead of `express.Router()`, the middleware import has a misspelled `require` and points to `middlewares` rather than the existing `middleware` directory, and the middleware has invalid blacklist lookup and JWT verification expressions. Cookie-based authentication also requires `cookie-parser` to be registered before the routes.
